@@ -105,7 +105,8 @@ serviceAccount:
   name: ""
 
 # Pod Security Context
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 1000
 
 # Security Context
 securityContext:
