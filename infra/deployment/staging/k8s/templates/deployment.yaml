@@ -25,7 +25,7 @@ spec:
         tags.datadoghq.com/service: n8n-platform
         tags.datadoghq.com/version: {{ .Chart.AppVersion | quote }}
       annotations:
-        timestamp: "{{ date "20060102150405" .Release.Time }}"
+        timestamp: "{{ now | date "20060102150405" }}"
     spec:
       imagePullSecrets:
         - name: {{ include "n8n.fullname" . }}-ecr
