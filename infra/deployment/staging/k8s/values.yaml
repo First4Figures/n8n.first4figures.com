@@ -39,13 +39,14 @@ postgres:
       cpu: "500m"
 
 # External Database configuration (RDS)
+# All values passed via --set during deployment from GitHub Secrets
 externalDatabase:
   enabled: true
-  host: "tf-staging-api-figgyz-com-postgresql.cluster-c7nppfw6qj2v.us-east-1.rds.amazonaws.com"
+  host: "placeholder"
   port: 5432
-  database: "n8n"
-  user: "n8nstaging"
-  # Password passed via --set externalDatabase.password during deployment
+  database: "placeholder"
+  user: "placeholder"
+  password: "placeholder"
 
 # n8n configuration
 n8n:

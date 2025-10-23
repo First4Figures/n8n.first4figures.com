@@ -18,9 +18,9 @@ image:
   tag: "production"
   pullPolicy: "Always"
 
-# PostgreSQL configuration
+# PostgreSQL configuration (in-cluster - DISABLED, using external RDS)
 postgres:
-  enabled: true
+  enabled: false
   image: "postgres:16-alpine"
   storage:
     size: 10Gi
@@ -37,6 +37,16 @@ postgres:
     limits:
       memory: "512Mi"
       cpu: "500m"
+
+# External Database configuration (RDS)
+# All values passed via --set during deployment from GitHub Secrets
+externalDatabase:
+  enabled: true
+  host: "placeholder"
+  port: 5432
+  database: "placeholder"
+  user: "placeholder"
+  password: "placeholder"
 
 # n8n configuration
 n8n:

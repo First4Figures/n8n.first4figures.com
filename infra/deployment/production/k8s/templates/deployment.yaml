@@ -77,16 +77,13 @@ spec:
             - name: DB_TYPE
               value: postgresdb
             - name: DB_POSTGRESDB_HOST
-              value: {{ include "n8n.fullname" . }}-postgres
+              value: {{ if .Values.externalDatabase.enabled }}{{ .Values.externalDatabase.host }}{{ else }}{{ include "n8n.fullname" . }}-postgres{{ end }}
             - name: DB_POSTGRESDB_PORT
-              value: "5432"
+              value: {{ if .Values.externalDatabase.enabled }}"{{ .Values.externalDatabase.port }}"{{ else }}"5432"{{ end }}
             - name: DB_POSTGRESDB_DATABASE
-              value: {{ .Values.postgres.database }}
+              value: {{ if .Values.externalDatabase.enabled }}{{ .Values.externalDatabase.database }}{{ else }}{{ .Values.postgres.database }}{{ end }}
             - name: DB_POSTGRESDB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: postgresUser
+              value: {{ if .Values.externalDatabase.enabled }}{{ .Values.externalDatabase.user }}{{ else }}n8n{{ end }}
             - name: DB_POSTGRESDB_PASSWORD
               valueFrom:
                 secretKeyRef:

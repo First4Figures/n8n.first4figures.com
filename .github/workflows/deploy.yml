@@ -114,7 +114,11 @@ jobs:
             --install \
             $HELM_RELEASE-$HELM_STAGE $HELM_CHART \
             --set image.tag="$HELM_STAGE" \
-            --set externalDatabase.password="${{ secrets.STAGING_POSTGRES_PASSWORD }}" \
+            --set externalDatabase.host="${{ secrets.STAGING_DB_HOST }}" \
+            --set externalDatabase.port="${{ secrets.STAGING_DB_PORT }}" \
+            --set externalDatabase.database="${{ secrets.STAGING_DB_NAME }}" \
+            --set externalDatabase.user="${{ secrets.STAGING_DB_USER }}" \
+            --set externalDatabase.password="${{ secrets.STAGING_DB_PASSWORD }}" \
             --set n8n.encryptionKey="${{ secrets.STAGING_N8N_ENCRYPTION_KEY }}" \
             --set n8n.basicAuth.user="${{ secrets.STAGING_N8N_BASIC_AUTH_USER }}" \
             --set n8n.basicAuth.password="${{ secrets.STAGING_N8N_BASIC_AUTH_PASSWORD }}"
