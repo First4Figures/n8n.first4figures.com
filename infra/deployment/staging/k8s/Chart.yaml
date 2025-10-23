@@ -1,0 +1,11 @@
+apiVersion: v2
+name: n8n-platform
+description: n8n Automation Platform - Staging Environment
+
+type: application
+
+# Chart version
+version: 0.1.0
+
+# Application version
+appVersion: latest

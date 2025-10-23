@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Validate Helm charts
+        run: |
+          # Install helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+          # Validate staging chart
+          echo "Validating staging chart..."
+          helm lint infra/deployment/staging/k8s/
+
+          # Validate production chart
+          echo "Validating production chart..."
+          helm lint infra/deployment/production/k8s/
+
+      - name: Validate Dockerfile
+        run: |
+          echo "Checking Dockerfile.k8s syntax..."
+          docker build --no-cache -f Dockerfile.k8s -t n8n-platform:test . || exit 1
+          echo "Dockerfile validation passed!"
+
+      - name: Summary
+        run: |
+          echo "✅ All validations passed!"
+          echo "- Helm charts are valid"
+          echo "- Dockerfile builds successfully"

@@ -1,0 +1,131 @@
+# Default values for n8n-platform staging deployment
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+# Deployment strategy
+replicaStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# n8n image configuration
+image:
+  repository: "169829274692.dkr.ecr.ap-east-1.amazonaws.com"
+  name: "n8n-platform"
+  tag: "staging"
+  pullPolicy: "Always"
+
+# PostgreSQL configuration
+postgres:
+  enabled: true
+  image: "postgres:16-alpine"
+  storage:
+    size: 10Gi
+    storageClass: gp2
+  database: n8n
+  user: n8n
+  # Passwords are passed via --set during deployment
+  password: "placeholder"
+  rootPassword: "placeholder"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# n8n configuration
+n8n:
+  protocol: https
+  host: staging-n8n.first4figures.com
+  webhookUrl: https://staging-n8n.first4figures.com/
+  timezone: UTC
+
+  # Basic authentication (always enabled in staging)
+  basicAuth:
+    enabled: true
+    user: "placeholder"
+    password: "placeholder"
+
+  # Encryption key for credentials
+  encryptionKey: "placeholder"
+
+  # Execution data pruning
+  executionsPrune: true
+  executionsMaxAge: 168  # 7 days in hours
+
+  # Environment
+  railsEnv: staging
+
+# Service configuration
+service:
+  name: http
+  type: NodePort
+  externalPort: 5678
+  internalPort: 5678
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/issuer: "letsencrypt-production"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.org/proxy-connect-timeout: "30s"
+    nginx.org/proxy-read-timeout: "60s"
+    nginx.org/client-max-body-size: "10m"
+    nginx.org/proxy-body-size: "10m"
+  hosts:
+    - host: staging-n8n.first4figures.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: n8n-platform-staging-tls
+      hosts:
+        - staging-n8n.first4figures.com
+
+# Resource limits for n8n
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Security Context
+podSecurityContext: {}
+
+# Security Context
+securityContext: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Horizontal Pod Autoscaler (disabled for staging)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nameOverride: ""
+fullnameOverride: ""

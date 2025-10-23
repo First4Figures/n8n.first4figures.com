@@ -1,0 +1,199 @@
+name: Deploy Workflow
+
+on:
+  # Only trigger on workflow_run (after CI completes on main)
+  # This prevents duplicate runs and ensures CI passes first
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+  # Allow manual deployment
+  workflow_dispatch:
+  # Allow deployment via PR comment
+  issue_comment:
+    types: [created]
+
+jobs:
+  deploy_staging:
+    runs-on: ubuntu-latest
+    environment: STAGING
+    # Only deploy if CI workflow succeeded or if triggered manually
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'issue_comment' ||
+      github.event.pull_request.merged == true
+    steps:
+      - uses: khan/pull-request-comment-trigger@v1.1.0
+        if: github.event_name == 'issue_comment'
+        id: check
+        with:
+          trigger: "/deploy:staging"
+          reaction: rocket
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - uses: actions/github-script@v8
+        if: github.event_name == 'issue_comment'
+        id: get-pr
+        with:
+          script: |
+            const request = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            }
+            core.info(`Getting PR #${request.pull_number} from ${request.owner}/${request.repo}`)
+            try {
+              const result = await github.pulls.get(request)
+              return result.data
+            } catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+
+      - name: Checkout source code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'issue_comment' && fromJSON(steps.get-pr.outputs.result).head.ref || 'main' }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.DEPLOY_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DEPLOY_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.DEPLOY_AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-duration-seconds: 1200
+          role-session-name: N8nPlatformDeployStaging
+
+      - name: Login to Amazon ECR (ap-east-1)
+        env:
+          AWS_REGION: ap-east-1
+        run: |
+          aws ecr get-login-password --region ap-east-1 | docker login --username AWS --password-stdin 169829274692.dkr.ecr.ap-east-1.amazonaws.com
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: 169829274692.dkr.ecr.ap-east-1.amazonaws.com
+          ECR_REPOSITORY: n8n-platform
+          IMAGE_TAG: staging
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile.k8s .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Setup kubeconfig to use the correct k8s cluster
+        env:
+          EKS_CLUSTER_NAME: f4fpay-staging-20250109
+          AWS_REGION: us-east-1
+        run: |
+          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.25.0
+        id: install
+
+      - name: Install helm and init
+        env:
+          HELM_VERSION: 3.11.1
+        run: |
+          wget https://get.helm.sh/helm-v$HELM_VERSION-linux-amd64.tar.gz
+          tar -zxvf helm-v$HELM_VERSION-linux-amd64.tar.gz
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+
+      - name: Deploy staging-n8n.first4figures.com
+        env:
+          HELM_RELEASE: n8n-platform
+          HELM_STAGE: staging
+          HELM_CHART: k8s
+        run: |
+          cd infra/deployment/staging && helm upgrade \
+            --install \
+            $HELM_RELEASE-$HELM_STAGE $HELM_CHART \
+            --set image.tag="$HELM_STAGE" \
+            --set postgres.password="${{ secrets.STAGING_POSTGRES_PASSWORD }}" \
+            --set n8n.encryptionKey="${{ secrets.STAGING_N8N_ENCRYPTION_KEY }}" \
+            --set n8n.basicAuth.user="${{ secrets.STAGING_N8N_BASIC_AUTH_USER }}" \
+            --set n8n.basicAuth.password="${{ secrets.STAGING_N8N_BASIC_AUTH_PASSWORD }}"
+
+  # PRODUCTION DEPLOYMENT
+  # This job runs after staging deployment succeeds
+  # COMMENTED OUT until staging is validated
+  # deploy_production:
+  #   runs-on: ubuntu-latest
+  #   environment: PRODUCTION
+  #   needs: deploy_staging
+  #   # Only deploy if triggered by workflow_run (CI completed) or manual dispatch
+  #   if: |
+  #     (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+  #     github.event_name == 'workflow_dispatch' ||
+  #     github.event.pull_request.merged == true
+  #   steps:
+  #     - name: Checkout source code
+  #       uses: actions/checkout@v5
+  #       with:
+  #         ref: main
+  #
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v5
+  #       with:
+  #         aws-access-key-id: ${{ secrets.DEPLOY_AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.DEPLOY_AWS_SECRET_ACCESS_KEY }}
+  #         role-to-assume: ${{ secrets.DEPLOY_AWS_ROLE_ARN }}
+  #         aws-region: us-east-1
+  #         role-duration-seconds: 1200
+  #         role-session-name: N8nPlatformDeployProduction
+  #
+  #     - name: Login to Amazon ECR (ap-east-1)
+  #       env:
+  #         AWS_REGION: ap-east-1
+  #       run: |
+  #         aws ecr get-login-password --region ap-east-1 | docker login --username AWS --password-stdin 169829274692.dkr.ecr.ap-east-1.amazonaws.com
+  #
+  #     - name: Build, tag, and push image to Amazon ECR
+  #       env:
+  #         ECR_REGISTRY: 169829274692.dkr.ecr.ap-east-1.amazonaws.com
+  #         ECR_REPOSITORY: n8n-platform
+  #         IMAGE_TAG: production
+  #       run: |
+  #         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile.k8s .
+  #         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+  #
+  #     - name: Setup kubeconfig to use the correct k8s cluster
+  #       env:
+  #         EKS_CLUSTER_NAME: f4fpay-production-20230709
+  #         AWS_REGION: us-east-1
+  #       run: |
+  #         aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
+  #
+  #     - name: Install kubectl
+  #       uses: azure/setup-kubectl@v4
+  #       with:
+  #         version: v1.25.0
+  #       id: install
+  #
+  #     - name: Install helm and init
+  #       env:
+  #         HELM_VERSION: 3.11.1
+  #       run: |
+  #         wget https://get.helm.sh/helm-v$HELM_VERSION-linux-amd64.tar.gz
+  #         tar -zxvf helm-v$HELM_VERSION-linux-amd64.tar.gz
+  #         sudo mv linux-amd64/helm /usr/local/bin/helm
+  #
+  #     - name: Deploy n8n.first4figures.com
+  #       env:
+  #         HELM_RELEASE: n8n-platform
+  #         HELM_STAGE: production
+  #         HELM_CHART: k8s
+  #       run: |
+  #         cd infra/deployment/production && helm upgrade \
+  #           --install \
+  #           $HELM_RELEASE-$HELM_STAGE $HELM_CHART \
+  #           --set image.tag="$HELM_STAGE" \
+  #           --set postgres.password="${{ secrets.PRODUCTION_POSTGRES_PASSWORD }}" \
+  #           --set n8n.encryptionKey="${{ secrets.PRODUCTION_N8N_ENCRYPTION_KEY }}" \
+  #           --set n8n.basicAuth.user="${{ secrets.PRODUCTION_N8N_BASIC_AUTH_USER }}" \
+  #           --set n8n.basicAuth.password="${{ secrets.PRODUCTION_N8N_BASIC_AUTH_PASSWORD }}"

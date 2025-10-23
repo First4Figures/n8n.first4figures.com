@@ -1,0 +1,24 @@
+# Dockerfile for n8n Kubernetes deployment
+# This is a thin wrapper around the official n8n image
+# to allow for future customizations if needed
+
+FROM docker.n8n.io/n8nio/n8n:latest
+
+# Use root temporarily for package installation
+USER root
+
+# Install any additional dependencies if needed in the future
+# RUN apk add --no-cache <package-name>
+
+# Set back to node user for security
+USER node
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
+  CMD node healthcheck.js || exit 1
+
+# Expose n8n port
+EXPOSE 5678
+
+# Use the default n8n entrypoint and command
+# CMD ["n8n"]

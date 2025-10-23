@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-service
+  namespace: n8n
+  labels:
+    app: n8n
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5678
+      targetPort: 5678
+      protocol: TCP
+      name: http
+  selector:
+    app: n8n
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-data-pvc
+  namespace: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: "standard"
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: n8n
+  labels:
+    app: n8n
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:latest
+          command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres; sleep 2; done;']
+      containers:
+        - name: n8n
+          image: docker.n8n.io/n8nio/n8n:latest
+          ports:
+            - containerPort: 5678
+              name: http
+          env:
+            - name: DB_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: DB_TYPE
+            - name: DB_POSTGRESDB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: DB_POSTGRESDB_HOST
+            - name: DB_POSTGRESDB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: DB_POSTGRESDB_PORT
+            - name: DB_POSTGRESDB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: DB_POSTGRESDB_DATABASE
+            - name: DB_POSTGRESDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: n8n-db-user
+            - name: DB_POSTGRESDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: n8n-db-password
+            - name: N8N_BASIC_AUTH_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: N8N_BASIC_AUTH_ACTIVE
+            - name: N8N_BASIC_AUTH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secret
+                  key: n8n-basic-auth-user
+            - name: N8N_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secret
+                  key: n8n-basic-auth-password
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secret
+                  key: n8n-encryption-key
+            - name: N8N_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: N8N_HOST
+            - name: N8N_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: N8N_PORT
+            - name: N8N_PROTOCOL
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: N8N_PROTOCOL
+            - name: WEBHOOK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: WEBHOOK_URL
+            - name: GENERIC_TIMEZONE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: GENERIC_TIMEZONE
+            - name: EXECUTIONS_DATA_PRUNE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: EXECUTIONS_DATA_PRUNE
+            - name: EXECUTIONS_DATA_MAX_AGE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n-config
+                  key: EXECUTIONS_DATA_MAX_AGE
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: n8n-data-pvc
