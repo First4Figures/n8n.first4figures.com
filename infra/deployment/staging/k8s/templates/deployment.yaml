@@ -39,7 +39,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z {{ include "n8n.fullname" . }}-postgres 5432; do
+              until nc -z {{ if .Values.externalDatabase.enabled }}{{ .Values.externalDatabase.host }}{{ else }}{{ include "n8n.fullname" . }}-postgres{{ end }} {{ if .Values.externalDatabase.enabled }}{{ .Values.externalDatabase.port }}{{ else }}5432{{ end }}; do
                 echo "Waiting for PostgreSQL..."
                 sleep 2
               done
