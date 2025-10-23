@@ -114,7 +114,7 @@ jobs:
             --install \
             $HELM_RELEASE-$HELM_STAGE $HELM_CHART \
             --set image.tag="$HELM_STAGE" \
-            --set postgres.password="${{ secrets.STAGING_POSTGRES_PASSWORD }}" \
+            --set externalDatabase.password="${{ secrets.STAGING_POSTGRES_PASSWORD }}" \
             --set n8n.encryptionKey="${{ secrets.STAGING_N8N_ENCRYPTION_KEY }}" \
             --set n8n.basicAuth.user="${{ secrets.STAGING_N8N_BASIC_AUTH_USER }}" \
             --set n8n.basicAuth.password="${{ secrets.STAGING_N8N_BASIC_AUTH_PASSWORD }}"
