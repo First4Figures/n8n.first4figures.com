@@ -159,15 +159,10 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
 
           volumeMounts:
-            - name: n8n-data
-              mountPath: /home/node/.n8n
             - name: dsdsocket
               mountPath: /var/run/datadog
 
       volumes:
-        - name: n8n-data
-          persistentVolumeClaim:
-            claimName: {{ include "n8n.fullname" . }}-data
         - name: dsdsocket
           hostPath:
             path: /var/run/datadog/
@@ -184,17 +179,3 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ include "n8n.fullname" . }}-data
-  labels:
-    {{- include "n8n.labels" . | nindent 4 }}
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: gp2
-  resources:
-    requests:
-      storage: 5Gi
